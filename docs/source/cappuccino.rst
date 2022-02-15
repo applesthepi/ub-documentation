@@ -12,6 +12,7 @@ Preprocessor
 The preprocessor stage takes place on the executable. Going through all blocks, it creates a **ModBlockData** for each one. The **ModBlockData** contains the following items:
 
 .. code:: c++
+
     std::vector<void*> m_data;
     std::vector<void*> m_preData;
     std::vector<ModBlockDataType> m_types;
