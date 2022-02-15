@@ -18,7 +18,7 @@ The preprocessor stage takes place on the executable. Going through all blocks, 
     std::vector<ModBlockDataType> m_types;
     std::vector<ModBlockDataInterpretation> m_interpretations;
 
-Every argument has one index inside this vector. All arguments that are in variable-mode relay are **std::string\***s. Reals use **double\*** and booleans use **bool\***. This is the most basic form of information you can get from each block in the editor.
+Every argument has one index inside this vector. All arguments that are in variable-mode relay are **std::string\* **s. Reals use **double\*** and booleans use **bool\***. This is the most basic form of information you can get from each block in the editor.
 
 ```cpp
 std::vector<void*> m_data;
