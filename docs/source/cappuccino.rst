@@ -1,5 +1,13 @@
+.. role:: cpp(code)
+   :language: c++
+
 Cappuccino
 ==========
+
+Disclaimer
+----------
+
+This documentation was written a while ago and isnt completly accurate and will only stray further the more the build system gets updated.
 
 About
 -----
@@ -18,11 +26,8 @@ The preprocessor stage takes place on the executable. Going through all blocks, 
     std::vector<ModBlockDataType> m_types;
     std::vector<ModBlockDataInterpretation> m_interpretations;
 
-Every argument has one index inside this vector. All arguments that are in variable-mode relay are **std::string***s. Reals use **double*** and booleans use **bool***. This is the most basic form of information you can get from each block in the editor.
-
-```cpp
-std::vector<void*> m_data;
-```
+:cpp:`std::vector<void*> m_data;`
+	Every argument has one index inside this vector. All arguments that are in variable-mode relay are ``std::string*``. Reals use ``double*`` and booleans use ``bool*``. This is the most basic form of information you can get from each block in the editor.
 
 Predata is data that can be transferred from the initialization stages to the runtime stages. It is part of **ModBlockData** because this is how the **ModBlockPass** gets its information. Predata does nothing during this stage.
 
