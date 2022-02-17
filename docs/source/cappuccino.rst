@@ -243,146 +243,149 @@ I have deliberately separated the four members into groups of two. These members
 
 The ``m_variablesRealCount`` may make sense immediately. Every element is the amount of real variables in the corresponding stack. This includes both **R** and **L** Values. This is generally used when checking bounds and allocating the other members listed above.
 
-``m_dataStackReal`` is ground zero. Every element is an array of a variable type for the corresponding stack. This is used as a template to allocate further members. During **RuntimeInitialization**, **ModBlock**s will be able to set this default data though the **ModBlockData**.
+``m_dataStackReal`` is ground zero. Every element is an array of a variable type for the corresponding stack. This is used as a template to allocate further members. During ``RuntimeInitialization``, ``ModBlock``s will be able to set this default data though the ``ModBlockData``.
 
-```cpp
-const std::vector<void*>& GetData();
-```
+.. code:: c++
+
+	const std::vector<void*>& GetData();
 
 **m_stackingReal** and **m_activeReal** are closely related. **m_stackingReal** is simply a "stack" of active variable registries. It grows and shrinks when functions are called. **m_activeReal** simply refers to the most active variable registry.
 
-```cpp
-m_activeReal = m_stackingReal.back();
-m_activeBool = m_stackingBool.back();
-m_activeString = m_stackingString.back();
-```
+.. code:: c++
+	
+	m_activeReal = m_stackingReal.back();
+	m_activeBool = m_stackingBool.back();
+	m_activeString = m_stackingString.back();
 
-You may be wondering, "Why do you need a member to specify the active stack's variable registry when you can get it using **m_stackingReal.back()**?"
+You may be wondering, "Why do you need a member to specify the active stack's variable registry when you can get it using ``m_stackingReal.back()``?"
 
-The answer is: "Performance". A better question would be, "Why can you just set the **m_activeReal** to the template registry instead of pushing it to another vector first?" There is a very important reason for this, and it has to do with these public functions:
+The answer is: "Performance". A better question would be, "Why can you just set the ``m_activeReal`` to the template registry instead of pushing it to another vector first?" There is a very important reason for this, and it has to do with these public functions:
 
-```cpp
-void AddCallstack(const uint64_t& stack, const uint64_t& block, const bool& special = true);
-void PopCallstack();
-```
+.. code:: c++
+
+	void AddCallstack(const uint64_t& stack, const uint64_t& block, const bool& special = true);
+	void PopCallstack();
 
 If you just wanted to quickly change stacks during runtime, you could do so when **special** were false. This would result in the following code being executed:
 
-```cpp
-m_callstackStackIdx->push_back(stack);
-m_callstackBlockIdx->push_back(block);
+.. code:: c++
 
-m_stackingSpecial.push_back(false);
+	m_callstackStackIdx->push_back(stack);
+	m_callstackBlockIdx->push_back(block);
 
-m_stackingReal.push_back(m_dataStackReal[m_callstackStackIdx->back()]);
-m_stackingBool.push_back(m_dataStackBool[m_callstackStackIdx->back()]);
-m_stackingString.push_back(m_dataStackString[m_callstackStackIdx->back()]);
-```
+	m_stackingSpecial.push_back(false);
 
-However, you may notice an issue with this approach. Even though the previous index was saved inside **m_callstackBlockIdx** and **m_callstackStackIdx**, the registry that would be set as active would be from the template registry **m_dataStackReal**. This means that you would be treating all [**R** and **L** values](#r_and_l_values) as static. This would mean there could only be one of each in a particular translation unit, or stack in this case.
+	m_stackingReal.push_back(m_dataStackReal[m_callstackStackIdx->back()]);
+	m_stackingBool.push_back(m_dataStackBool[m_callstackStackIdx->back()]);
+	m_stackingString.push_back(m_dataStackString[m_callstackStackIdx->back()]);
 
-```cpp
-static double gReal = 0.0;
-static bool gBool = false;
-static std::string gString;
-```
+However, you may notice an issue with this approach. Even though the previous index was saved inside ``m_callstackBlockIdx`` and ``m_callstackStackIdx``, the registry that would be set as active would be from the template registry ``m_dataStackReal``. This means that you would be treating all **R** and **L** Values as static. This would mean there could only be one of each in a particular translation unit, or stack in this case.
+
+.. code:: c++
+
+	static double gReal = 0.0;
+	static bool gBool = false;
+	static std::string gString;
+
 
 This is a major issue when you are trying to keep multiple states of the same variable in the same stack. When you call the function that you are inside the middle of, the new callstack will be editing the same variables as the old callstack. This can easily cause memory corruption.
 
 So how can we keep multiple states of the same variables? By flagging **special** true. This instead causes the following code to run:
 
-```cpp
-m_stackingSpecial.push_back(true);
+.. code:: c++
+	
+	m_stackingSpecial.push_back(true);
 
-double* reals = new double[m_variablesRealCount->at(m_callstackStackIdx->back())];
-bool* bools = new bool[m_variablesBoolCount->at(m_callstackStackIdx->back())];
-std::string* strings = new std::string[m_variablesStringCount->at(m_callstackStackIdx->back())];
+	double* reals = new double[m_variablesRealCount->at(m_callstackStackIdx->back())];
+	bool* bools = new bool[m_variablesBoolCount->at(m_callstackStackIdx->back())];
+	std::string* strings = new std::string[m_variablesStringCount->at(m_callstackStackIdx->back())];
 
-for (uint64_t i = 0; i < m_variablesRealCount->at(m_callstackStackIdx->back()); i++)
-	reals[i] = m_dataStackReal[m_callstackStackIdx->back()][i];
+	for (uint64_t i = 0; i < m_variablesRealCount->at(m_callstackStackIdx->back()); i++)
+		reals[i] = m_dataStackReal[m_callstackStackIdx->back()][i];
 
-for (uint64_t i = 0; i < m_variablesBoolCount->at(m_callstackStackIdx->back()); i++)
-	bools[i] = m_dataStackBool[m_callstackStackIdx->back()][i];
+	for (uint64_t i = 0; i < m_variablesBoolCount->at(m_callstackStackIdx->back()); i++)
+		bools[i] = m_dataStackBool[m_callstackStackIdx->back()][i];
 
-for (uint64_t i = 0; i < m_variablesStringCount->at(m_callstackStackIdx->back()); i++)
-	strings[i] = m_dataStackString[m_callstackStackIdx->back()][i];
+	for (uint64_t i = 0; i < m_variablesStringCount->at(m_callstackStackIdx->back()); i++)
+		strings[i] = m_dataStackString[m_callstackStackIdx->back()][i];
 
-m_stackingReal.push_back(reals);
-m_stackingBool.push_back(bools);
-m_stackingString.push_back(strings);
-```
+	m_stackingReal.push_back(reals);
+	m_stackingBool.push_back(bools);
+	m_stackingString.push_back(strings);
 
-When **special** is flagged true, instead of pushing the **m_dataStackReal** (template registry), it instead makes a copy of it. This way, we can have multiple states of the same variable. When a function comes to the end, it pops the last **m_stackingReal**.
+When **special** is flagged true, instead of pushing the ``m_dataStackReal`` (template registry), it instead makes a copy of it. This way, we can have multiple states of the same variable. When a function comes to the end, it pops the last ``m_stackingReal``.
 
-```cpp
-m_callstackStackIdx->pop_back();
-m_callstackBlockIdx->pop_back();
+.. code:: c++
 
-if (m_stackingSpecial.back())
-{
-	delete[] m_stackingReal.back();
-	delete[] m_stackingBool.back();
-	delete[] m_stackingString.back();
-}
+	m_callstackStackIdx->pop_back();
+	m_callstackBlockIdx->pop_back();
 
-m_stackingReal.pop_back();
-m_stackingBool.pop_back();
-m_stackingString.pop_back();
-```
-
-<h1 id="executionthread">ExecutionThread</h1>
-
-**ExecutionThread** refers to the thread where the execution is taking place. The **ExecutionThread** has several flags:
-
-```cpp
-std::atomic<bool> m_finished;
-std::atomic<bool> m_kill;
-std::atomic<bool> m_ended;
-
-std::atomic<bool> m_breaked;
-std::atomic<bool>* m_resume;
-std::atomic<bool> m_step;
-```
-
-Due to performance, we don't want the thread checking each thread with every block execution. Similarly, we also do not want to calculate the time since the last flag pull to pull after the time is up. Instead we identified one single flag to be responsible for interrupting the execution and to then test the other flags. **m_finished** does exactly this.
-
-As soon as the execution is interrupted, it first tests **m_breaked**. If this is true, then **m_finished** will continue to be false so we perform step execution. The following is a *heavily modified snippet* of what happens when **m_breaked** is true:
-
-```cpp
-finished = false;
-
-while (!resume)
-{
-	// true when Cappuccino wants
-	// this thread to die immediately
-	if (kill)
-		return;
-
-	if (step)
+	if (m_stackingSpecial.back())
 	{
-		step = false;
-		finished = true;
-		break;
+		delete[] m_stackingReal.back();
+		delete[] m_stackingBool.back();
+		delete[] m_stackingString.back();
 	}
-}
 
-if (resume)
-	break = false;
+	m_stackingReal.pop_back();
+	m_stackingBool.pop_back();
+	m_stackingString.pop_back();
 
-// inside execution loop after
-// m_finished is checked
-goto loop;
-```
+ExecutionThread
+---------------
 
-<h1 id="super_instructions">Super Instructions</h1>
+``ExecutionThread`` refers to the thread where the execution is taking place. The ``ExecutionThread`` has several flags:
 
-Super instructions are instructions that can be sent and received from either **Cappuccino** or the executable to perform debugging operations. You can find the list of instructions inside a comment in [this file](https://github.com/applesthepi/unnamedblocks/blob/dev/Cappuccino/include/Cappuccino/Registration.h). Here are the instructions at the time of writing:
+.. code:: c++
 
-```
-1 - [ R/D ] stop; kill all
-2 - [ R/D ] break all
-3 - [ R/D ] resume all
-4 - [ __D ] break single thread (idx)
-5 - [ __D ] step single thread
-6 - [ __D ] resume single thread
-```
+	std::atomic<bool> m_finished;
+	std::atomic<bool> m_kill;
+	std::atomic<bool> m_ended;
+
+	std::atomic<bool> m_breaked;
+	std::atomic<bool>* m_resume;
+	std::atomic<bool> m_step;
+
+Due to performance, we don't want the thread checking each thread with every block execution. Similarly, we also do not want to calculate the time since the last flag pull to pull after the time is up. Instead we identified one single flag to be responsible for interrupting the execution and to then test the other flags. ``m_finished`` does exactly this.
+
+As soon as the execution is interrupted, it first tests ``m_breaked``. If this is true, then ``m_finished`` will continue to be false so we perform step execution. The following is a *heavily modified snippet* of what happens when ``m_breaked`` is true:
+
+.. code:: c++
+
+	finished = false;
+
+	while (!resume)
+	{
+		// true when Cappuccino wants
+		// this thread to die immediately
+		if (kill)
+			return;
+
+		if (step)
+		{
+			step = false;
+			finished = true;
+			break;
+		}
+	}
+
+	if (resume)
+		break = false;
+
+	// inside execution loop after
+	// m_finished is checked
+	goto loop;
+
+Super Instructions
+------------------
+
+Super instructions are instructions that can be sent and received from either ``Cappuccino`` or the executable to perform debugging operations. Here are the instructions at the time of writing:
+
+.. code:: c++
+	
+	1 - [ R/D ] stop; kill all
+	2 - [ R/D ] break all
+	3 - [ R/D ] resume all
+	4 - [ __D ] break single thread (idx)
+	5 - [ __D ] step single thread
+	6 - [ __D ] resume single thread
